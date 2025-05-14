@@ -40,6 +40,11 @@ def main():
     print("-" * 30)
     print(prof.display(show_events=False))
 
+    # print("-" * 30)
+    # print("默认树状结构输出 (包含FLOPs和参数):")
+    # print("-" * 30)
+    # print(prof.display(show_events=True))
+
     # print("\n" + "-" * 30)
     # print("按 'FLOPs' 排序 (降序), 显示全部:")
     # print("-" * 30)
