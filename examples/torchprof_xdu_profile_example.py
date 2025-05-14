@@ -21,7 +21,8 @@ def main():
     ) as prof:
         # 运行模型
         with torch.no_grad():
-            _ = model(input_tensor)
+            for _ in range(30):  # 30
+                _ = model(input_tensor)
 
     # 打印分析结果
     print(prof.display(show_events=False))
