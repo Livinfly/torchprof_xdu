@@ -2,12 +2,25 @@
 
 因为原版 [TorchProf](https://github.com/awwong1/torchprof) 比较老，为了更好的实验环境，用AI工具对其使用的profiler后端 PyTorch autograd profiler，更换为 Pytorch profiler，本人测试的情况下，和原版使用一致，欢迎人工对比两个仓库的功能实现并补充。
 
-同时，添加了 Flops 和 Params 的测定。
+同时，添加了 Flops 和 Params 的测定，按照某种标准排序，不过存在不保留前缀的情况，存在问题（待修复），建议对照原版输出和模型结构去寻找对应层。
 
 ```bash
 # 在torchprof_xdu文件外，使用下面这行命令来测试
 python -m torchprof_xdu.examples.torchprof_xdu_profile_example
 python -m torchprof_xdu.examples.torchprof_xdu_profile_detailed_example
+```
+
+```python
+# 临时调用
+current_file_path = os.path.abspath(__file__)
+task_dir = os.path.dirname(current_file_path)
+profile_dir = os.path.dirname(task_dir)
+project_root = os.path.dirname(profile_dir)
+
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from torchprof_xdu import ProfileDetailed
 ```
 
 ```bash
