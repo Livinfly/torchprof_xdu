@@ -4,10 +4,14 @@
 
 同时，添加了 Flops 和 Params 的测定，按照某种标准排序，不过存在不保留前缀的情况，存在问题（待修复），建议对照原版输出和模型结构去寻找对应层。
 
+现又增加新功能，为了更好的后续的作图等工作，新实现 `get_raw_measure_dict_from_profiler_data`，支持取出 `dict{layer, measure}`，作为后续处理的基础，使用方法见 `torchprof_xdu_profile_detailed_raw_example.py`，可能需要对导出的单位进行后处理。
+
 ```bash
 # 在torchprof_xdu文件外，使用下面这行命令来测试
+# 注意，同文件夹下不能出现同名 profile 文件/文件夹！！
 python -m torchprof_xdu.examples.torchprof_xdu_profile_example
 python -m torchprof_xdu.examples.torchprof_xdu_profile_detailed_example
+python -m torchprof_xdu.examples.torchprof_xdu_profile_detailed_raw_example
 ```
 
 ```python

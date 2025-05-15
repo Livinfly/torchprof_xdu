@@ -6,12 +6,13 @@ from ..torchprof_xdu_profile import Profile
 def main():
     # 检测设备
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # print(f"使用设备: {device}")
+    print(f"使用设备: {device}\n")
 
     # 加载预训练模型
     model = models.alexnet(weights=None)
     model = model.to(device)
-
+    model.eval() # 设置为评估模式，这对于分析很重要，可以关闭 dropout 等
+    
     # 准备输入数据
     input_tensor = torch.randn(1, 3, 224, 224).to(device)
 

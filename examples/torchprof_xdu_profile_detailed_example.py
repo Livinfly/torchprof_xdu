@@ -8,21 +8,19 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"使用设备: {device}\n")
 
-    # 加载预训练模型 (使用 ResNet18 作为例子，AlexNet 也可以)
-    # weights=None 表示随机初始化，如果需要预训练权重，可以使用 weights=models.ResNet18_Weights.DEFAULT
+    # 加载预训练模型
     model = models.alexnet(weights=None)
     model = model.to(device)
     model.eval() # 设置为评估模式，这对于分析很重要，可以关闭 dropout 等
 
     # 准备输入数据
-    # 对于 ResNet18，通常输入是 (N, 3, 224, 224)
     input_tensor = torch.randn(1, 3, 224, 224).to(device)
 
     print("=" * 40)
     print("开始使用 ProfileDetailed 进行性能分析...")
     print("=" * 40 + "\n")
 
-    # 使用 ProfileDetailed 进行性能分析
+    num_runs = 30  # 多跑几次
     with ProfileDetailed(
         model,
         enabled=True,
@@ -30,7 +28,7 @@ def main():
         profile_memory=True
     ) as prof:
         with torch.no_grad():
-            for _ in range(30):  # 30
+            for _ in range(num_runs):
                 _ = model(input_tensor)
 
     # 打印分析结果 - 展示详细版本的各种显示选项

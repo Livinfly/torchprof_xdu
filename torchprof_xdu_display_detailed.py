@@ -359,3 +359,90 @@ def traces_to_display_detailed(
         [" | ".join(["{:<{}s}".format(line[i], max_lens[i]) for i in range(len(line))]) for line in display_lines_final]
     )
     return f"{header_str}\n{separator_str}\n{lines_str}\n"
+
+def get_raw_measure_dict_from_profiler_data(
+        profiler_raw_data,
+        target_measure_name: str,
+        average_over_calls: bool = False
+    ):
+    """
+    根据 ProfileDetailed.raw() 的输出和指定的指标名称，提取每个被剖析模块的特定指标值。
+    此函数依赖于在同一文件中定义的 _build_measure_tuple 函数来聚合每个模块的指标。
+
+    参数:
+        profiler_raw_data: ProfileDetailed.raw() 的输出, 期望是一个元组:
+                           (traces, trace_profile_events, trace_module_details)。
+        target_measure_name (str): 要提取的指标的名称,
+                                   应与 SORT_BY_MAP 中的键匹配。
+        average_over_calls (bool): 如果为 True, 对于时间、内存、FLOPs等动态指标,
+                                   返回每次调用的平均值。否则返回所有调用的总和。
+                                   参数数量 (Parameters) 和调用次数 (Occurrences/Calls)
+                                   不受此标志影响，总是返回其本身的值。
+
+    返回:
+        dict: 一个字典，将模块路径字符串映射到对应的原始指标数值。
+              如果发生错误或未找到数据，则返回空字典。
+    """
+    if profiler_raw_data is None:
+        print("Error: profiler_raw_data is None. Cannot extract measures.") # 英文提示
+        return {}
+
+    try:
+        # Unpack based on ProfileDetailed.raw() structure
+        traces, trace_profile_events, trace_module_details = profiler_raw_data
+    except (ValueError, TypeError):
+        print("Error: profiler_raw_data format is incorrect. " # 英文提示
+              "Expected (traces, trace_profile_events, trace_module_details).")
+        return {}
+
+    output_dict = {}
+    # Map the user-facing measure name to the internal field name of the Measure namedtuple
+    measure_field_name = SORT_BY_MAP.get(target_measure_name)
+
+    if not measure_field_name:
+        print(f"Warning: Unrecognized measure name '{target_measure_name}'. " # 英文提示
+              f"Valid names include: {list(SORT_BY_MAP.keys())}")
+        return {}
+
+    # Identify all unique module paths that have been profiled or have details
+    all_profiled_module_paths = set(trace_profile_events.keys()) | set(trace_module_details.keys())
+
+    for path_tuple in all_profiled_module_paths:
+        module_path_str = ".".join(path_tuple) # Convert path tuple to string for dict key
+
+        module_event_lists = trace_profile_events.get(path_tuple, [])
+        num_calls_for_module = len(module_event_lists)
+        
+        module_static_details = trace_module_details.get(path_tuple, {})
+        parameter_count = module_static_details.get("params", 0)
+        
+        # Use _build_measure_tuple to get an aggregated Measure object for this module
+        # This Measure object contains summed values over all calls.
+        # _build_measure_tuple 应该在当前文件中定义
+        aggregated_module_measures = _build_measure_tuple(
+            module_event_lists,
+            num_calls_for_module,
+            parameter_count
+        )
+        
+        if hasattr(aggregated_module_measures, measure_field_name):
+            raw_value = getattr(aggregated_module_measures, measure_field_name)
+
+            # If average is requested and the metric is not 'params' or 'occurrences'
+            if average_over_calls and num_calls_for_module > 0 and \
+               measure_field_name not in ["params", "occurrences"]:
+                if raw_value is not None: # Ensure value is not None before division
+                    raw_value /= num_calls_for_module
+            
+            # 'occurrences' from _build_measure_tuple is already the total number of calls.
+            # 'params' is a fixed value per module.
+            # So, no special handling needed for them here regarding averaging.
+
+            output_dict[module_path_str] = raw_value
+        else:
+            # 保持调试信息为英文，或者按需修改
+            print(f"Debug: Measure field '{measure_field_name}' (from user input '{target_measure_name}') "
+                  f"not found in aggregated measures for module '{module_path_str}'. "
+                  f"Aggregated measures: {aggregated_module_measures}")
+
+    return output_dict
