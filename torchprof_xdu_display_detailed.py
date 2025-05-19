@@ -5,10 +5,9 @@ from collections import OrderedDict, namedtuple
 Measure = namedtuple(
     "Measure",
     [
-        "self_cpu_total", "cpu_total",
-        "self_cuda_total", "cuda_total",
-        "self_cpu_memory", "cpu_memory",
-        "self_cuda_memory", "cuda_memory",
+        "self_cpu_time", "cpu_time",
+        "self_cuda_time", "cuda_time",
+        "memory_usage", "cuda_memory_usage",
         "occurrences",
         "params", "flops"
     ],
@@ -16,16 +15,14 @@ Measure = namedtuple(
 
 # 用于排序的指标名称到 Measure 字段名称的映射
 SORT_BY_MAP = {
-    "Self CPU total": "self_cpu_total", "CPU total": "cpu_total",
-    "Self CUDA total": "self_cuda_total", "CUDA total": "cuda_total",
-    "Self CPU Mem": "self_cpu_memory", "CPU Mem": "cpu_memory",
-    "Self CUDA Mem": "self_cuda_memory", "CUDA Mem": "cuda_memory",
+    "Self CPU total": "self_cpu_time", "CPU total": "cpu_time",
+    "Self CUDA total": "self_cuda_time", "CUDA total": "cuda_time",
+    "CPU Mem": "memory_usage", "CUDA Mem": "cuda_memory_usage",
     "FLOPs": "flops", "Parameters": "params", "Calls": "occurrences",
     # Raw field names also accepted for convenience
-    "self_cpu_total": "self_cpu_total", "cpu_total": "cpu_total",
-    "self_cuda_total": "self_cuda_total", "cuda_total": "cuda_total",
-    "self_cpu_memory": "self_cpu_memory", "cpu_memory": "cpu_memory",
-    "self_cuda_memory": "self_cuda_memory", "cuda_memory": "cuda_memory",
+    "self_cpu_time": "self_cpu_time", "cpu_time": "cpu_time",
+    "self_cuda_time": "self_cuda_time", "cuda_time": "cuda_time",
+    "memory_usage": "memory_usage", "cuda_memory_usage": "cuda_memory_usage",
     "flops": "flops", "params": "params", "occurrences": "occurrences",
 }
 
@@ -71,15 +68,13 @@ def _format_measure_tuple(measure):
     if not measure:
         return Measure(*([""] * len(Measure._fields)))
     return Measure(
-        self_cpu_total=_format_time(measure.self_cpu_total),
-        cpu_total=_format_time(measure.cpu_total),
-        self_cuda_total=_format_time(measure.self_cuda_total),
-        cuda_total=_format_time(measure.cuda_total),
-        self_cpu_memory=_format_memory(measure.self_cpu_memory),
-        cpu_memory=_format_memory(measure.cpu_memory),
-        self_cuda_memory=_format_memory(measure.self_cuda_memory),
-        cuda_memory=_format_memory(measure.cuda_memory),
-        occurrences=str(measure.occurrences) if measure.occurrences is not None else "",
+        self_cpu_time=_format_time(measure.self_cpu_time),
+        cpu_time=_format_time(measure.cpu_time),
+        self_cuda_time=_format_time(measure.self_cuda_time),
+        cuda_time=_format_time(measure.cuda_time),
+        memory_usage=_format_memory(measure.memory_usage),
+        cuda_memory_usage=_format_memory(measure.cuda_memory_usage),
+        occurrences=str(measure.occurrences),
         params=_format_params(measure.params),
         flops=_format_flops(measure.flops)
     )
@@ -97,39 +92,48 @@ def _flatten_tree(t, depth=0):
     return flat
 
 def _build_measure_tuple(events_for_module, occurrences, module_params, module_flops_from_event_placeholder=0):
-    self_cpu_total_sum, cpu_total_sum, self_cuda_total_sum, cuda_total_sum = 0,0,0,0
-    self_cpu_memory_sum, cpu_memory_sum, self_cuda_memory_sum, cuda_memory_sum = 0,0,0,0
+    self_cpu_time_sum, cpu_time_sum, self_cuda_time_sum, cuda_time_sum = 0,0,0,0
+    memory_usage_sum, cuda_memory_usage_sum = 0,0
     total_flops_from_events = 0
 
     if not events_for_module or not any(events_for_module): # occurrences can be 0
-        return Measure(0,0,0,0,0,0,0,0, occurrences, module_params, 0)
+        return Measure(0,0,0,0,0,0, occurrences, module_params, 0)
 
     all_single_events = [evt for event_list in events_for_module for evt in event_list]
     if not all_single_events and occurrences == 0 : # Only return all zeros if no calls and no events
-         return Measure(0,0,0,0,0,0,0,0, 0, module_params, 0)
+         return Measure(0,0,0,0,0,0, 0, module_params, 0)
     if not all_single_events and occurrences > 0: # Module called but produced no profiler events (e.g. empty module)
-         return Measure(0,0,0,0,0,0,0,0, occurrences, module_params, 0)
+         return Measure(0,0,0,0,0,0, occurrences, module_params, 0)
 
 
     for event in all_single_events:
-        self_cpu_total_sum += getattr(event, "self_cpu_time_total", 0)
-        cpu_total_sum += getattr(event, "cpu_time_total", 0)
-        self_cuda_total_sum += getattr(event, "self_cuda_time_total", 0)
-        cuda_total_sum += getattr(event, "cuda_time_total", 0)
-        self_cpu_memory_sum += getattr(event, "self_cpu_memory_usage", 0)
-        cpu_memory_sum += getattr(event, "cpu_memory_usage", 0)
-        self_cuda_memory_sum += getattr(event, "self_cuda_memory_usage", 0)
-        cuda_memory_sum += getattr(event, "cuda_memory_usage", 0)
+        # print(event)
+        # print(getattr(event, "self_cpu_time_total", 0), getattr(event, "cpu_time", 0), 
+        #     getattr(event, "self_device_time_total", 0), getattr(event, "device_time", 0),
+        #     getattr(event, "cpu_memory_usage", 0), getattr(event, "device_memory_usage", 0))
+        # print(dir(event))
+        # print(event.cpu_time, event.cpu_time_str)
+        # print(event.cpu_time_total_str, event.device_time)
+        # event.self_cpu_time_total *= 1000
+        # print(event)
+        # print(getattr(event, "self_cpu_time_total", 0), getattr(event, "cpu_time_total", 0), 
+        #     getattr(event, "self_cuda_time_total", 0), getattr(event, "cuda_time", 0),
+        #     getattr(event, "memory_usage_total", 0), getattr(event, "cuda_memory_usage_total", 0))
+        # break
+        self_cpu_time_sum += getattr(event, "self_cpu_time_total", 0) * 1000
+        cpu_time_sum += getattr(event, "cpu_time", 0) * 1000
+        self_cuda_time_sum += getattr(event, "self_device_time_total", 0) * 1000
+        cuda_time_sum += getattr(event, "device_time", 0) * 1000
+        memory_usage_sum += getattr(event, "cpu_memory_usage", 0)
+        cuda_memory_usage_sum += getattr(event, "device_memory_usage", 0)
         total_flops_from_events += getattr(event, "flops", 0)
 
     return Measure(
-        self_cpu_total=self_cpu_total_sum, cpu_total=cpu_total_sum,
-        self_cuda_total=self_cuda_total_sum if self_cuda_total_sum > 0 or any(hasattr(e, "self_cuda_time_total") for e in all_single_events) else None,
-        cuda_total=cuda_total_sum if cuda_total_sum > 0 or any(hasattr(e, "cuda_time_total") for e in all_single_events) else None,
-        self_cpu_memory=self_cpu_memory_sum if self_cpu_memory_sum != 0 or any(hasattr(e, "self_cpu_memory_usage") for e in all_single_events) else None,
-        cpu_memory=cpu_memory_sum if cpu_memory_sum != 0 or any(hasattr(e, "cpu_memory_usage") for e in all_single_events) else None,
-        self_cuda_memory=self_cuda_memory_sum if self_cuda_memory_sum != 0 or any(hasattr(e, "self_cuda_memory_usage") for e in all_single_events) else None,
-        cuda_memory=cuda_memory_sum if cuda_memory_sum != 0 or any(hasattr(e, "cuda_memory_usage") for e in all_single_events) else None,
+        self_cpu_time=self_cpu_time_sum, cpu_time=cpu_time_sum,
+        self_cuda_time=self_cuda_time_sum,
+        cuda_time=cuda_time_sum,
+        memory_usage=memory_usage_sum,
+        cuda_memory_usage=cuda_memory_usage_sum,
         occurrences=occurrences, params=module_params, flops=total_flops_from_events
     )
 
@@ -224,8 +228,8 @@ def traces_to_display_detailed(
 
     # Prepare formatted lines for the table
     format_lines = []
-    has_self_cuda_total, has_cuda_total, has_self_cpu_memory, has_cpu_memory = False, False, False, False
-    has_self_cuda_memory, has_cuda_memory, has_flops, has_params = False, False, False, False
+    # has_self_cuda_total, has_cuda_total, has_self_cpu_memory, has_cpu_memory = False, False, False, False
+    # has_self_cuda_memory, has_cuda_memory, has_flops, has_params = False, False, False, False
 
     for idx, (depth, name, measures_obj) in enumerate(processed_tree_lines):
         # Calculate tree prefix for indentation
@@ -263,49 +267,49 @@ def traces_to_display_detailed(
             pre = temp_pre
         else: # depth == 0
             pre = ""
-
-
+        # print(measures_obj)
         formatted_measure_values = _format_measure_tuple(measures_obj)
         format_lines.append([pre + name, *formatted_measure_values])
 
-        if measures_obj: # Update flags for dynamic column display
-            has_self_cuda_total = has_self_cuda_total or (measures_obj.self_cuda_total is not None and measures_obj.self_cuda_total != 0)
-            has_cuda_total = has_cuda_total or (measures_obj.cuda_total is not None and measures_obj.cuda_total != 0)
-            has_self_cpu_memory = has_self_cpu_memory or (measures_obj.self_cpu_memory is not None and measures_obj.self_cpu_memory !=0)
-            has_cpu_memory = has_cpu_memory or (measures_obj.cpu_memory is not None and measures_obj.cpu_memory !=0)
-            has_self_cuda_memory = has_self_cuda_memory or (measures_obj.self_cuda_memory is not None and measures_obj.self_cuda_memory !=0)
-            has_cuda_memory = has_cuda_memory or (measures_obj.cuda_memory is not None and measures_obj.cuda_memory !=0)
-            has_flops = has_flops or (measures_obj.flops is not None and measures_obj.flops !=0)
-            has_params = has_params or (measures_obj.params is not None and measures_obj.params !=0)
+        # if measures_obj: # Update flags for dynamic column display
+        #     has_self_cuda_total = has_self_cuda_total or (measures_obj.self_cuda_total is not None and measures_obj.self_cuda_total != 0)
+        #     has_cuda_total = has_cuda_total or (measures_obj.cuda_total is not None and measures_obj.cuda_total != 0)
+        #     has_self_cpu_memory = has_self_cpu_memory or (measures_obj.self_cpu_memory is not None and measures_obj.self_cpu_memory !=0)
+        #     has_cpu_memory = has_cpu_memory or (measures_obj.cpu_memory is not None and measures_obj.cpu_memory !=0)
+        #     has_self_cuda_memory = has_self_cuda_memory or (measures_obj.self_cuda_memory is not None and measures_obj.self_cuda_memory !=0)
+        #     has_cuda_memory = has_cuda_memory or (measures_obj.cuda_memory is not None and measures_obj.cuda_memory !=0)
+        #     has_flops = has_flops or (measures_obj.flops is not None and measures_obj.flops !=0)
+        #     has_params = has_params or (measures_obj.params is not None and measures_obj.params !=0)
 
     # Define table headings
     # Order of Measure: s_cpu, cpu, s_cuda, cuda, s_cpu_m, cpu_m, s_cuda_m, cuda_m, occ, params, flops
     # Corresponding indices in formatted_measure_values (after name): 0..10
     heading_all = [
         "Module",                     # 0
-        "Self CPU total", "CPU total", # 1, 2
-        "Self CUDA total", "CUDA total",# 3, 4
-        "Self CPU Mem", "CPU Mem",    # 5, 6
-        "Self CUDA Mem", "CUDA Mem",   # 7, 8
+        "Self CPU time", "CPU time", # 1, 2
+        "Self CUDA time", "CUDA time",# 3, 4
+        "CPU Mem",    # 5, 6
+        "CUDA Mem",   # 7, 8
         "FLOPs",                      # 9 (maps to measure.flops, which is index 10 of formatted_measure_values)
         "Parameters",                 # 10 (maps to measure.params, which is index 9 of formatted_measure_values)
         "Calls"                       # 11 (maps to measure.occurrences, index 8 of formatted_measure_values)
     ]
     
     # Determine which columns to display based on data and settings
-    selected_heading_indices = [0, 1, 2] # Module, Self CPU, CPU total always shown if data exists
-    if use_cuda:
-        if has_self_cuda_total: selected_heading_indices.append(3)
-        if has_cuda_total: selected_heading_indices.append(4)
-    if profile_memory:
-        if has_self_cpu_memory: selected_heading_indices.append(5)
-        if has_cpu_memory: selected_heading_indices.append(6)
-        if use_cuda:
-            if has_self_cuda_memory: selected_heading_indices.append(7)
-            if has_cuda_memory: selected_heading_indices.append(8)
-    if has_flops: selected_heading_indices.append(9) # FLOPs
-    if has_params: selected_heading_indices.append(10) # Parameters
-    selected_heading_indices.append(11) # Calls
+    # selected_heading_indices = [0, 1, 2] # Module, Self CPU, CPU total always shown if data exists
+    # if use_cuda:
+    #     if has_self_cuda_total: selected_heading_indices.append(3)
+    #     if has_cuda_total: selected_heading_indices.append(4)
+    # if profile_memory:
+    #     if has_self_cpu_memory: selected_heading_indices.append(5)
+    #     if has_cpu_memory: selected_heading_indices.append(6)
+    #     if use_cuda:
+    #         if has_self_cuda_memory: selected_heading_indices.append(7)
+    #         if has_cuda_memory: selected_heading_indices.append(8)
+    # if has_flops: selected_heading_indices.append(9) # FLOPs
+    # if has_params: selected_heading_indices.append(10) # Parameters
+    # selected_heading_indices.append(11) # Calls
+    selected_heading_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  # 9, 10, 11
     selected_heading_indices = sorted(list(set(selected_heading_indices)))
 
     display_heading = [heading_all[i] for i in selected_heading_indices]
@@ -316,10 +320,10 @@ def traces_to_display_detailed(
     # Corresponding heading_all index:    1,    2,   3,    4,   5,     6,    7,     8,     11,      10,      9
     
     map_heading_idx_to_data_idx = {
-        1:0, 2:1, 3:2, 4:3, 5:4, 6:5, 7:6, 8:7, # Times and Memory
-        11:8, # Calls (occurrences)
-        10:9, # Parameters
-        9:10  # FLOPs
+        1:0, 2:1, 3:2, 4:3, 5:4, 6:5, # Times and Memory
+        7:8, # Calls (occurrences)
+        8:7, # Parameters
+        9:6  # FLOPs
     }
 
     display_lines_final = []

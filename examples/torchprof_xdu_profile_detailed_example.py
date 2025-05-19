@@ -6,6 +6,7 @@ from ..torchprof_xdu_profile_detailed import ProfileDetailed
 def main():
     # 检测设备
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     print(f"使用设备: {device}\n")
 
     # 加载预训练模型
@@ -43,11 +44,11 @@ def main():
     # print("-" * 30)
     # print(prof.display(show_events=True))
 
-    print("\n" + "-" * 30)
-    print("按 'FLOPs' 排序 (降序), 显示全部:")
-    print("-" * 30)
-    # 注意：sort_by 的值需要与 torchprof_xdu_display_detailed.py 中的 SORT_BY_MAP 键匹配
-    print(prof.display(sort_by="FLOPs", top_k=-1))
+    # print("\n" + "-" * 30)
+    # print("按 'FLOPs' 排序 (降序), 显示全部:")
+    # print("-" * 30)
+    # # 注意：sort_by 的值需要与 torchprof_xdu_display_detailed.py 中的 SORT_BY_MAP 键匹配
+    # print(prof.display(sort_by="FLOPs", top_k=-1))
 
     # print("\n" + "-" * 30)
     # print("按 'Self CPU total' 排序, 显示 Top 5:")

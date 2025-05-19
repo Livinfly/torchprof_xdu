@@ -6,6 +6,9 @@
 
 现又增加新功能，为了更好的后续的作图等工作，新实现 `get_raw_measure_dict_from_profiler_data`，支持取出 `dict{layer, measure}`，作为后续处理的基础，使用方法见 `torchprof_xdu_profile_detailed_raw_example.py`，可能需要对导出的单位进行后处理。
 
+现在对 cuda 模式进行修复，`_build_measure_tuple`。
+优先使用 detailed 版本
+
 ```bash
 # 在torchprof_xdu文件外，使用下面这行命令来测试
 # 注意，同文件夹下不能出现同名 profile 文件/文件夹！！
