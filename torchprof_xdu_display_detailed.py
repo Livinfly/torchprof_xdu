@@ -21,7 +21,7 @@ SORT_BY_MAP = {
     "FLOPs": "flops", "Parameters": "params", "Calls": "occurrences",
     # Raw field names also accepted for convenience
     "self_cpu_time": "self_cpu_time", "cpu_time": "cpu_time",
-    "self_cuda_time": "self_cuda_time", "cuda_time": "cuda_time",
+    "self_cuda_time": "self_cuda_time", "cuda_time": "cuda_time",   
     "memory_usage": "memory_usage", "cuda_memory_usage": "cuda_memory_usage",
     "flops": "flops", "params": "params", "occurrences": "occurrences",
 }
@@ -450,8 +450,84 @@ def get_raw_measure_dict_from_profiler_data(
                   f"Aggregated measures: {aggregated_module_measures}")
 
     return output_dict
+import matplotlib.pyplot as plt
 
-def display_extracted_measure_dict(measure_dict, measure_name, is_averaged=False, unit_converter=None, top_n=100, is_sort=False):
+def extract_unit_from_formatter(formatter, value, measure_name):
+    try:
+        result = formatter(value, measure_name)
+        if isinstance(result, str) and " " in result:
+            return result.split()[-1]
+    except:
+        pass
+    return "units"
+
+
+def plot_bar_and_pie(items, measure_name="Metric", use_unit=False, unit_converter=None,save_path=None):
+    """
+    绘制横向柱状图和饼状图，显示每个模块的数值或单位值。
+
+    参数:
+        items: List of (module_name, value_str)
+        measure_name: 指标名称 (用于标题和单位判断)
+        use_unit: 是否使用单位格式化显示（如 us, MB）
+        unit_converter: 单位转换函数 (value, measure_name) -> str
+    """
+    import seaborn as sns
+    import numpy as np
+    labels = [name for name, val in items]
+    values = [float(val) for name, val in items]
+
+    plt.figure(figsize=(10, 6))
+    bars = plt.barh(labels, values, color='skyblue')
+    plt.xlabel(measure_name)
+    plt.title(f"Top Modules by {measure_name}")
+    plt.gca().invert_yaxis()
+
+    if use_unit and unit_converter:
+        formatted = [unit_converter(v, measure_name) for v in values]
+    else:
+        formatted = [f"{v:.2f}" for v in values]
+
+    plt.bar_label(bars, labels=formatted)
+    plt.tight_layout()
+    if save_path:
+        print(f"{save_path}_{measure_name}_bar.png")
+        plt.savefig(f"{save_path}_{measure_name}_bar.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # 创建饼状图
+    if all(v == 0 for v in values):
+        print(f"[警告] 所有模块的 {measure_name} 都为 0,跳过饼图绘制。")
+    else :
+        colors = sns.color_palette("pastel", len(values))
+
+    # 突出最大值（explode）
+        max_index = np.argmax(values)
+        explode = [0.05 if i == max_index else 0 for i in range(len(values))]
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        wedges, texts, autotexts = ax.pie(
+        values,
+        labels=None,
+        autopct="%.1f%%",
+        startangle=140,
+        colors=colors,
+        shadow=True,
+        explode=explode,
+        wedgeprops={'edgecolor': 'white'}
+    )
+
+    # 图例放右侧
+        ax.legend(wedges, labels, title="Modules", loc="center left", bbox_to_anchor=(1, 0.5))
+        ax.set_title(f"{measure_name} Distribution", fontsize=14, fontweight='bold')
+        plt.tight_layout()
+        if save_path:
+            print(f"{save_path}_{measure_name}_pie.png")
+            plt.savefig(f"{save_path}_{measure_name}_pie.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+
+def display_extracted_measure_dict(measure_dict, measure_name, is_averaged=False, unit_converter=None, top_n=100, is_sort=False,save_file=None):
     """
     封装一个函数来打印从 get_raw_measure_dict_from_profiler_data 返回的字典。
 
@@ -490,10 +566,11 @@ def display_extracted_measure_dict(measure_dict, measure_name, is_averaged=False
             key=lambda item: item[0],
             reverse=False
         )
-
+    display_items =[]
     count = 0
     for module_path_str, value in valid_items:
         display_value = str(value) # 默认显示
+        display_items.append((module_path_str,display_value))
         if unit_converter:
             display_value = unit_converter(value, measure_name) # 使用转换器格式化
 
@@ -502,6 +579,10 @@ def display_extracted_measure_dict(measure_dict, measure_name, is_averaged=False
         if count >= top_n and len(valid_items) > top_n:
             print(f"  ... and {len(valid_items) - count} more modules.")
             break
+
+    if save_file!=None:
+        top_items = display_items
+        plot_bar_and_pie(top_items, measure_name=measure_name, use_unit=True, unit_converter=simple_value_formatter,save_path=save_file)
     
     if not valid_items and measure_dict: # 如果所有值都是 None
         print(f"  All values for '{measure_name}' were None or filtered out.")
@@ -512,9 +593,9 @@ def simple_value_formatter(value, measure_name):
     """根据指标名称对原始值进行简单格式化和单位转换。"""
     if value is None:
         return "None"
-    if "total" in measure_name.lower() and isinstance(value, (int, float)):
+    if "time" in measure_name.lower() and isinstance(value, (int, float)):
         return f"{value / 1_000:.3f} us" # 假设原始时间是纳秒
-    elif "Mem" in measure_name and isinstance(value, (int, float)):
+    elif "memory" in measure_name and isinstance(value, (int, float)):
         return f"{value / (1024*1024):.3f} MB" # 假设原始内存是字节
     elif "FLOPs" == measure_name and isinstance(value, (int, float)):
         return f"{value / 1e9:.3f} GFLOPs"
