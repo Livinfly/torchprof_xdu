@@ -1,13 +1,12 @@
 # TorchProf_XDU
 
-因为原版 [TorchProf](https://github.com/awwong1/torchprof) 比较老，为了更好的实验环境，用AI工具对其使用的profiler后端 PyTorch autograd profiler，更换为 Pytorch profiler，本人测试的情况下，和原版使用一致，欢迎人工对比两个仓库的功能实现并补充。
+因[课程作业](https://github.com/Livinfly/torchprof-XDU)而诞生，但因为原版 [TorchProf](https://github.com/awwong1/torchprof) 比较老，为了更好的实验环境，用AI工具对其使用的profiler后端 PyTorch autograd profiler，更换为 Pytorch profiler，本人测试的情况下，和原版使用一致，欢迎人工对比两个仓库的功能实现并补充。
 
-同时，添加了 Flops 和 Params 的测定，按照某种标准排序，不过存在不保留前缀的情况，存在问题（待修复），建议对照原版输出和模型结构去寻找对应层。
-
-现又增加新功能，为了更好的后续的作图等工作，新实现 `get_raw_measure_dict_from_profiler_data`，支持取出 `dict{layer, measure}`，作为后续处理的基础，使用方法见 `torchprof_xdu_profile_detailed_raw_example.py`，可能需要对导出的单位进行后处理。
-
-现在对 cuda 模式进行修复，`_build_measure_tuple`。
-优先使用 detailed 版本
+- 同时，添加了 Flops 和 Params 的测定，按照某种标准排序，不过存在不保留前缀的情况，存在问题（待修复），建议对照原版输出和模型结构去寻找对应层。
+- 现又增加新功能，为了更好的后续的作图等工作，新实现 `get_raw_measure_dict_from_profiler_data`，支持取出 `dict{layer, measure}`，作为后续处理的基础，使用方法见 `torchprof_xdu_profile_detailed_raw_example.py`，可能需要对导出的单位进行后处理。
+- 现在对 cuda 模式进行修复，`_build_measure_tuple`。
+  优先使用 detailed 版本
+- 现由 [Xorzj](https://github.com/xorzj) 更新画图（柱状图和饼状图）功能，具体调用方法可见课程作业。
 
 ```bash
 # 在torchprof_xdu文件外，使用下面这行命令来测试
